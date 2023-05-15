@@ -587,6 +587,10 @@ func (f *fsm) verifyCommitEpochTx(commitEpochTx *types.Transaction) error {
 }
 
 func validateHeaderFields(parent *types.Header, header *types.Header) error {
+	// header extra data must be higher or equal to ExtraVanity = 32 in order to be compliant with Ethereum blocks
+	if len(header.ExtraData) < ExtraVanity {
+		return fmt.Errorf("extra-data shorter than %d bytes (%d)", ExtraVanity, len(header.ExtraData))
+	}
 	// verify parent hash
 	if parent.Hash != header.ParentHash {
 		return fmt.Errorf("incorrect header parent hash (parent=%s, header parent=%s)", parent.Hash, header.ParentHash)
@@ -594,6 +598,14 @@ func validateHeaderFields(parent *types.Header, header *types.Header) error {
 	// verify parent number
 	if header.Number != parent.Number+1 {
 		return fmt.Errorf("invalid number")
+	}
+	// verify header nonce is zero
+	if header.Nonce != types.ZeroNonce {
+		return fmt.Errorf("invalid nonce")
+	}
+	// verify that the gasUsed is <= gasLimit
+	if header.GasUsed > header.GasLimit {
+		return fmt.Errorf("invalid gas limit: have %v, max %v", header.GasUsed, header.GasLimit)
 	}
 	// verify time has passed
 	if header.Timestamp <= parent.Timestamp {
