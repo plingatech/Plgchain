@@ -35,11 +35,14 @@ const (
 	blockTimeFlag  = "block-time"
 	trieRootFlag   = "trieroot"
 
+	blockTimeDriftFlag = "block-time-drift"
+
 	defaultEpochSize        = uint64(10)
 	defaultSprintSize       = uint64(5)
 	defaultValidatorSetSize = 100
 	defaultBlockTime        = 2 * time.Second
 	defaultEpochReward      = 1
+	defaultBlockTimeDrift   = uint64(10)
 
 	contractDeployerAllowListAdminFlag   = "contract-deployer-allow-list-admin"
 	contractDeployerAllowListEnabledFlag = "contract-deployer-allow-list-enabled"
@@ -108,6 +111,7 @@ func (p *genesisParams) generatePolyBftChainConfig(o command.OutputFormatter) er
 		Governance:        initialValidators[0].Address,
 		InitialTrieRoot:   types.StringToHash(p.initialStateRoot),
 		NativeTokenConfig: p.nativeTokenConfig,
+		BlockTimeDrift:    p.blockTimeDrift,
 	}
 
 	// Disable london hardfork if burn contract address is not provided

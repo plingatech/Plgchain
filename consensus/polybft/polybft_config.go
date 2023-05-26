@@ -42,6 +42,9 @@ type PolyBFTConfig struct {
 	NativeTokenConfig *TokenConfig `json:"nativeTokenConfig"`
 
 	InitialTrieRoot types.Hash `json:"initialTrieRoot"`
+
+	// BlockTimeDrift defines the time slot in which a new block can be created
+	BlockTimeDrift uint64 `json:"blockTimeDrift"`
 }
 
 // LoadPolyBFTConfig loads chain config from provided path and unmarshals PolyBFTConfig

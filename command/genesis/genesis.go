@@ -225,6 +225,13 @@ func setFlags(cmd *cobra.Command) {
 			"",
 			"configuration of native token in format <name:symbol:decimals count:mintable flag>",
 		)
+
+		cmd.Flags().Uint64Var(
+			&params.blockTimeDrift,
+			blockTimeDriftFlag,
+			defaultBlockTimeDrift,
+			"configuration for block time drift value (in seconds)",
+		)
 	}
 
 	// Access Control Lists

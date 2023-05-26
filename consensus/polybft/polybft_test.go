@@ -68,6 +68,7 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 		InitialValidatorSet: validators.getParamValidators(),
 		EpochSize:           fixedEpochSize,
 		SprintSize:          5,
+		BlockTimeDrift:      10,
 	}
 
 	validatorSet := validators.getPublicIdentities()
@@ -126,7 +127,7 @@ func TestPolybft_VerifyHeader(t *testing.T) {
 
 	parentHeader := &types.Header{
 		Number:    polyBftConfig.EpochSize,
-		Timestamp: uint64(time.Now().UTC().UnixMilli()),
+		Timestamp: uint64(time.Now().UTC().Unix()),
 	}
 	parentCommitment := updateHeaderExtra(parentHeader, parentDelta, nil, &CheckpointData{EpochNumber: 1}, accountSetParent)
 
