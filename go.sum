@@ -705,6 +705,10 @@ github.com/umbracle/ethgo v0.1.4-0.20230326234627-15b1df435098 h1:OXYAHR6AKpV2A/
 github.com/umbracle/ethgo v0.1.4-0.20230326234627-15b1df435098/go.mod h1:bjxSp984qsxCStKoKjqz5fgugi4uWj6+/tFkSEpjk3A=
 github.com/umbracle/fastrlp v0.1.0 h1:V0W3f6ZKWqbu1KggdhnRWOi+t7+PfL3VyAffJqayI5s=
 github.com/umbracle/fastrlp v0.1.0/go.mod h1:5RHgqiFjd4vLJESMWagP/E7su+5Gzk0iqqmrotR8WdA=
+github.com/umbracle/ethgo v0.1.4-0.20230620074316-bcb1d27b7ba9 h1:HukIviDm3UlWpKYaYX7Ybxs8U8srJ2wKQcq7JdTcxbM=
+github.com/umbracle/ethgo v0.1.4-0.20230620074316-bcb1d27b7ba9/go.mod h1:J+OZNfRCtbaYW3AEc0m47GhwAzlNJjcr9vO86nzOr6E=
+github.com/umbracle/fastrlp v0.1.1-0.20230504065717-58a1b8a9929d h1:HAg1Kpr9buwRxEiC2UXU9oT2AU8uCU7o3/WTH+Lt5wo=
+github.com/umbracle/fastrlp v0.1.1-0.20230504065717-58a1b8a9929d/go.mod h1:5RHgqiFjd4vLJESMWagP/E7su+5Gzk0iqqmrotR8WdA=
 github.com/umbracle/go-eth-bn256 v0.0.0-20230125114011-47cb310d9b0b h1:5/xofhZiOG0I9DQXqDSPxqYObk6QI7mBGMJI+ngyIgc=
 github.com/umbracle/go-eth-bn256 v0.0.0-20230125114011-47cb310d9b0b/go.mod h1:H8SeC2PWEciymT92Mt07Qcfjr2FMEuCz/V+KPtPTy+U=
 github.com/urfave/cli v1.22.2/go.mod h1:Gos4lmkARVdJ6EkW0WaNv/tZAAMe9V7XWyB60NtXRu0=
