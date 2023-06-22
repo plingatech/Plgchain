@@ -50,6 +50,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/umbracle/ethgo v0.1.4-0.20230326234627-15b1df435098
 	github.com/umbracle/ethgo v0.1.4-0.20230620074316-bcb1d27b7ba9
+	github.com/umbracle/ethgo v0.1.4-0.20230622091706-8230f57578b2
 	github.com/valyala/fastjson v1.6.3 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
