@@ -702,6 +702,12 @@ func (t *Transition) run(contract *runtime.Contract, host runtime.Host) *runtime
 		if contract.Caller != contracts.SystemCaller {
 			role := t.txnAllowList.GetRole(contract.Caller)
 			if !role.Enabled() {
+				t.logger.Debug(
+					"Failing transaction. Caller is not in the transaction allowlist",
+					"contract.Caller", contract.Caller,
+					"contract.Address", contract.Address,
+				)
+
 				return &runtime.ExecutionResult{
 					GasLeft: 0,
 					Err:     runtime.ErrNotAuth,
@@ -716,6 +722,12 @@ func (t *Transition) run(contract *runtime.Contract, host runtime.Host) *runtime
 		if contract.Caller != contracts.SystemCaller {
 			role := t.txnBlockList.GetRole(contract.Caller)
 			if role == addresslist.EnabledRole {
+				t.logger.Debug(
+					"Failing transaction. Caller is in the transaction blocklist",
+					"contract.Caller", contract.Caller,
+					"contract.Address", contract.Address,
+				)
+
 				return &runtime.ExecutionResult{
 					GasLeft: 0,
 					Err:     runtime.ErrNotAuth,
@@ -872,6 +884,12 @@ func (t *Transition) applyCreate(c *runtime.Contract, host runtime.Host) *runtim
 		role := t.deploymentAllowList.GetRole(c.Caller)
 
 		if !role.Enabled() {
+			t.logger.Debug(
+				"Failing contract deployment. Caller is not in the deployment allowlist",
+				"contract.Caller", c.Caller,
+				"contract.Address", c.Address,
+			)
+
 			return &runtime.ExecutionResult{
 				GasLeft: 0,
 				Err:     runtime.ErrNotAuth,
@@ -881,6 +899,12 @@ func (t *Transition) applyCreate(c *runtime.Contract, host runtime.Host) *runtim
 		role := t.deploymentBlockList.GetRole(c.Caller)
 
 		if role == addresslist.EnabledRole {
+			t.logger.Debug(
+				"Failing contract deployment. Caller is in the deployment blocklist",
+				"contract.Caller", c.Caller,
+				"contract.Address", c.Address,
+			)
+
 			return &runtime.ExecutionResult{
 				GasLeft: 0,
 				Err:     runtime.ErrNotAuth,
