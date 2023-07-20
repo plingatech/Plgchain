@@ -14,6 +14,7 @@ import (
 	bls "github.com/0xPolygon/polygon-edge/consensus/polybft/signer"
 	"github.com/0xPolygon/polygon-edge/consensus/polybft/wallet"
 	"github.com/0xPolygon/polygon-edge/contracts"
+	"github.com/0xPolygon/polygon-edge/forkmanager"
 	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/helper/progress"
 	"github.com/0xPolygon/polygon-edge/network"
@@ -278,13 +279,13 @@ func (p *Polybft) Initialize() error {
 	return nil
 }
 
-func ForkManagerInitialParamsFactory(config *chain.Chain) (*chain.ForkParams, error) {
+func ForkManagerInitialParamsFactory(config *chain.Chain) (*forkmanager.ForkParams, error) {
 	pbftConfig, err := GetPolyBFTConfig(config)
 	if err != nil {
 		return nil, err
 	}
 
-	return &chain.ForkParams{
+	return &forkmanager.ForkParams{
 		EpochSize:      &pbftConfig.EpochSize,
 		SprintSize:     &pbftConfig.SprintSize,
 		BlockTime:      &pbftConfig.BlockTime,
