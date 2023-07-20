@@ -18,9 +18,9 @@ type transactionOrHash interface {
 
 type transaction struct {
 	Nonce       argUint64      `json:"nonce"`
-	GasPrice    argBig         `json:"gasPrice"`
-	GasTipCap   *argBig        `json:"gasTipCap,omitempty"`
-	GasFeeCap   *argBig        `json:"gasFeeCap,omitempty"`
+	GasPrice    *argBig        `json:"gasPrice,omitempty"`
+	GasTipCap   *argBig        `json:"maxPriorityFeePerGas,omitempty"`
+	GasFeeCap   *argBig        `json:"maxFeePerGas,omitempty"`
 	Gas         argUint64      `json:"gas"`
 	To          *types.Address `json:"to"`
 	Value       argBig         `json:"value"`
@@ -33,6 +33,7 @@ type transaction struct {
 	BlockHash   *types.Hash    `json:"blockHash"`
 	BlockNumber *argUint64     `json:"blockNumber"`
 	TxIndex     *argUint64     `json:"transactionIndex"`
+	ChainID     *argBig        `json:"chainID,omitempty"`
 	Type        argUint64      `json:"type"`
 }
 
@@ -58,18 +59,25 @@ func toTransaction(
 	txIndex *int,
 ) *transaction {
 	res := &transaction{
-		Nonce:    argUint64(t.Nonce),
-		GasPrice: argBig(*t.GasPrice),
-		Gas:      argUint64(t.Gas),
-		To:       t.To,
-		Value:    argBig(*t.Value),
-		Input:    t.Input,
-		V:        argBig(*t.V),
-		R:        argBig(*t.R),
-		S:        argBig(*t.S),
-		Hash:     t.Hash,
-		From:     t.From,
-		Type:     argUint64(t.Type),
+
+		Nonce:       argUint64(t.Nonce),
+		Gas:         argUint64(t.Gas),
+		To:          t.To,
+		Value:       argBig(*t.Value),
+		Input:       t.Input,
+		V:           argBig(*t.V),
+		R:           argBig(*t.R),
+		S:           argBig(*t.S),
+		Hash:        t.Hash,
+		From:        t.From,
+		Type:        argUint64(t.Type),
+		BlockNumber: blockNumber,
+		BlockHash:   blockHash,
+	}
+
+	if t.GasPrice != nil {
+		gasPrice := argBig(*t.GasPrice)
+		res.GasPrice = &gasPrice
 	}
 
 	if t.GasTipCap != nil {
@@ -82,12 +90,9 @@ func toTransaction(
 		res.GasFeeCap = &gasFeeCap
 	}
 
-	if blockNumber != nil {
-		res.BlockNumber = blockNumber
-	}
-
-	if blockHash != nil {
-		res.BlockHash = blockHash
+	if t.ChainID != nil {
+		chainID := argBig(*t.ChainID)
+		res.ChainID = &chainID
 	}
 
 	if txIndex != nil {
