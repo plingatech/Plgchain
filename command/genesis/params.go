@@ -122,15 +122,10 @@ type genesisParams struct {
 
 	nativeTokenConfigRaw string
 	nativeTokenConfig    *polybft.TokenConfig
-<<<<<<< HEAD
-=======
 
 	premineInfos []*premineInfo
 
-	// rewards
-	rewardTokenCode string
-	rewardWallet    string
->>>>>>> 4cf4b799 (Ensure premining reserve account (0x0 address) (#1685))
+	
 }
 
 func (p *genesisParams) validateFlags() error {
@@ -150,8 +145,6 @@ func (p *genesisParams) validateFlags() error {
 		if err := p.extractNativeTokenMetadata(); err != nil {
 			return err
 		}
-<<<<<<< HEAD
-=======
 
 		if err := p.validateBurnContract(); err != nil {
 			return err
@@ -164,7 +157,6 @@ func (p *genesisParams) validateFlags() error {
 		if err := p.validatePremineInfo(); err != nil {
 			return err
 		}
->>>>>>> 4cf4b799 (Ensure premining reserve account (0x0 address) (#1685))
 	}
 
 	// Check if the genesis file already exists
