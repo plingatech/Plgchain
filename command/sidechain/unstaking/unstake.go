@@ -54,10 +54,10 @@ func setFlags(cmd *cobra.Command) {
 		"indicates if its a self unstake action",
 	)
 
-	cmd.Flags().Uint64Var(
+	cmd.Flags().StringVar(
 		&params.amount,
 		sidechainHelper.AmountFlag,
-		0,
+		"",
 		"amount to unstake or undelegate amount from validator",
 	)
 

@@ -3,6 +3,7 @@ package staking
 import (
 	"bytes"
 	"fmt"
+	"math/big"
 
 	"github.com/0xPolygon/polygon-edge/command/helper"
 	sidechainHelper "github.com/0xPolygon/polygon-edge/command/sidechain"
@@ -16,13 +17,17 @@ type stakeParams struct {
 	accountDir      string
 	accountConfig   string
 	jsonRPC         string
-	amount          uint64
+	amount          string
 	self            bool
 	delegateAddress string
+	amountValue     *big.Int
 }
 
-func (v *stakeParams) validateFlags() error {
-	return sidechainHelper.ValidateSecretFlags(v.accountDir, v.accountConfig)
+func (sp *stakeParams) validateFlags() (err error) {
+	if sp.amountValue, err = helper.ParseAmount(sp.amount); err != nil {
+		return err
+	}
+	return sidechainHelper.ValidateSecretFlags(sp.accountDir, sp.accountConfig)
 }
 
 type stakeResult struct {

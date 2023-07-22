@@ -2,7 +2,6 @@ package staking
 
 import (
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/0xPolygon/polygon-edge/command"
@@ -57,11 +56,11 @@ func setFlags(cmd *cobra.Command) {
 		"indicates if its a self stake action",
 	)
 
-	cmd.Flags().Uint64Var(
+	cmd.Flags().StringVar(
 		&params.amount,
 		sidechainHelper.AmountFlag,
-		0,
-		"amount to stake or delegate to another account",
+		"",
+		"amount to stake",
 	)
 
 	cmd.Flags().StringVar(
@@ -115,7 +114,7 @@ func runCommand(cmd *cobra.Command, _ []string) error {
 		From:     validatorAccount.Ecdsa.Address(),
 		Input:    encoded,
 		To:       (*ethgo.Address)(&contracts.ValidatorSetContract),
-		Value:    new(big.Int).SetUint64(params.amount),
+		Value:    params.amountValue,
 		GasPrice: sidechainHelper.DefaultGasPrice,
 	}
 
