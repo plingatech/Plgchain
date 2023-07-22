@@ -120,6 +120,8 @@ type genesisParams struct {
 
 	nativeTokenConfigRaw string
 	nativeTokenConfig    *polybft.TokenConfig
+
+	premineInfos []*premineInfo
 }
 
 func (p *genesisParams) validateFlags() error {
