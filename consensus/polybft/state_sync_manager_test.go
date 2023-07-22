@@ -341,7 +341,13 @@ func TestStateSyncerManager_AddLog_BuildCommitments(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, stateSyncs, 0)
 
+<<<<<<< HEAD
 	var stateSyncedEvent contractsapi.StateSyncedEvent
+=======
+		// empty log which is not an state sync
+		require.NoError(t, s.AddLog(&ethgo.Log{}))
+		stateSyncs, err := s.state.StateSyncStore.list()
+>>>>>>> ac9b4491 ([EVM-703]: Saving events in boltdb should have retry mechanism (#1652))
 
 	stateSyncEventID := stateSyncedEvent.Sig()
 
@@ -352,9 +358,15 @@ func TestStateSyncerManager_AddLog_BuildCommitments(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, stateSyncs, 0)
 
+<<<<<<< HEAD
 	// correct event log
 	data, err := abi.MustNewType("tuple(string a)").Encode([]string{"data"})
 	require.NoError(t, err)
+=======
+		// log with the state sync topic but incorrect content
+		require.Error(t, s.AddLog(&ethgo.Log{Topics: []ethgo.Hash{stateSyncEventID}}))
+		stateSyncs, err = s.state.StateSyncStore.list()
+>>>>>>> ac9b4491 ([EVM-703]: Saving events in boltdb should have retry mechanism (#1652))
 
 	goodLog := &ethgo.Log{
 		Topics: []ethgo.Hash{
@@ -375,10 +387,14 @@ func TestStateSyncerManager_AddLog_BuildCommitments(t *testing.T) {
 	require.Equal(t, uint64(0), s.pendingCommitments[0].StartID.Uint64())
 	require.Equal(t, uint64(0), s.pendingCommitments[0].EndID.Uint64())
 
+<<<<<<< HEAD
 	// add one more log to have a minimum commitment
 	goodLog2 := goodLog.Copy()
 	goodLog2.Topics[1] = ethgo.BytesToHash([]byte{0x1}) // state sync index 1
 	s.AddLog(goodLog2)
+=======
+		require.NoError(t, s.AddLog(goodLog))
+>>>>>>> ac9b4491 ([EVM-703]: Saving events in boltdb should have retry mechanism (#1652))
 
 	require.Len(t, s.pendingCommitments, 2)
 	require.Equal(t, uint64(0), s.pendingCommitments[1].StartID.Uint64())
@@ -393,9 +409,56 @@ func TestStateSyncerManager_AddLog_BuildCommitments(t *testing.T) {
 	goodLog4.Topics[1] = ethgo.BytesToHash([]byte{0x3}) // state sync index 3
 	s.AddLog(goodLog4)
 
+<<<<<<< HEAD
 	require.Len(t, s.pendingCommitments, 4)
 	require.Equal(t, uint64(0), s.pendingCommitments[3].StartID.Uint64())
 	require.Equal(t, uint64(3), s.pendingCommitments[3].EndID.Uint64())
+=======
+		// add two more logs to have larger commitments
+		goodLog3 := goodLog.Copy()
+		goodLog3.Topics[1] = ethgo.BytesToHash([]byte{0x2}) // state sync index 2
+		require.NoError(t, s.AddLog(goodLog3))
+
+		goodLog4 := goodLog.Copy()
+		goodLog4.Topics[1] = ethgo.BytesToHash([]byte{0x3}) // state sync index 3
+		require.NoError(t, s.AddLog(goodLog4))
+
+		require.Len(t, s.pendingCommitments, 4)
+		require.Equal(t, uint64(0), s.pendingCommitments[3].StartID.Uint64())
+		require.Equal(t, uint64(3), s.pendingCommitments[3].EndID.Uint64())
+	})
+
+	t.Run("Node is not a validator", func(t *testing.T) {
+		t.Parallel()
+
+		s := newTestStateSyncManager(t, vals.GetValidator("0"), &mockRuntime{isActiveValidator: false})
+
+		// correct event log
+		data, err := abi.MustNewType("tuple(string a)").Encode([]string{"data"})
+		require.NoError(t, err)
+
+		var stateSyncedEvent contractsapi.StateSyncedEvent
+
+		goodLog := &ethgo.Log{
+			Topics: []ethgo.Hash{
+				stateSyncedEvent.Sig(),
+				ethgo.BytesToHash([]byte{0x0}), // state sync index 0
+				ethgo.ZeroHash,
+				ethgo.ZeroHash,
+			},
+			Data: data,
+		}
+
+		require.NoError(t, s.AddLog(goodLog))
+
+		// node should have inserted given state sync event, but it shouldn't build any commitment
+		stateSyncs, err := s.state.StateSyncStore.getStateSyncEventsForCommitment(0, 0)
+		require.NoError(t, err)
+		require.Len(t, stateSyncs, 1)
+		require.Equal(t, uint64(0), stateSyncs[0].ID.Uint64())
+		require.Len(t, s.pendingCommitments, 0)
+	})
+>>>>>>> ac9b4491 ([EVM-703]: Saving events in boltdb should have retry mechanism (#1652))
 }
 
 func TestStateSyncerManager_EventTracker_Sync(t *testing.T) {
