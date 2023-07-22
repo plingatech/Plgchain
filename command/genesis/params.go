@@ -141,6 +141,10 @@ func (p *genesisParams) validateFlags() error {
 		if err := p.extractNativeTokenMetadata(); err != nil {
 			return err
 		}
+
+		if err := p.validatePremineInfo(); err != nil {
+			return err
+		}
 	}
 
 	// Check if the genesis file already exists
@@ -441,6 +445,42 @@ func (p *genesisParams) predeployStakingSC() (*chain.GenesisAccount, error) {
 	return stakingAccount, nil
 }
 
+<<<<<<< HEAD
+=======
+// validateRewardWallet validates reward wallet flag
+
+// validatePremineInfo validates whether reserve account (0x0 address) is premined
+func (p *genesisParams) validatePremineInfo() error {
+	p.premineInfos = make([]*premineInfo, 0, len(p.premine))
+	isReserveAccPremined := false
+
+	for _, premine := range p.premine {
+		premineInfo, err := parsePremineInfo(premine)
+		if err != nil {
+			return fmt.Errorf("invalid premine balance amount provided: %w", err)
+		}
+
+		p.premineInfos = append(p.premineInfos, premineInfo)
+
+		if premineInfo.address == types.ZeroAddress {
+			isReserveAccPremined = true
+		}
+	}
+
+	if !isReserveAccPremined {
+		return errReserveAccMustBePremined
+	}
+
+	return nil
+}
+
+// validateBurnContract validates burn contract. If native token is mintable,
+// burn contract flag must not be set. If native token is non mintable only one burn contract
+// can be set and the specified address will be used to predeploy default EIP1559 burn contract.
+
+// isBurnContractEnabled returns true in case burn contract info is provided
+
+>>>>>>> a6936e89 (Bug fixes.)
 // extractNativeTokenMetadata parses provided native token metadata (such as name, symbol and decimals count)
 func (p *genesisParams) extractNativeTokenMetadata() error {
 	if p.nativeTokenConfigRaw == "" {
