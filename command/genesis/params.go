@@ -124,8 +124,6 @@ type genesisParams struct {
 	nativeTokenConfig    *polybft.TokenConfig
 
 	premineInfos []*premineInfo
-
-	
 }
 
 func (p *genesisParams) validateFlags() error {
@@ -143,14 +141,6 @@ func (p *genesisParams) validateFlags() error {
 
 	if p.isPolyBFTConsensus() {
 		if err := p.extractNativeTokenMetadata(); err != nil {
-			return err
-		}
-
-		if err := p.validateBurnContract(); err != nil {
-			return err
-		}
-
-		if err := p.validateRewardWallet(); err != nil {
 			return err
 		}
 
@@ -452,29 +442,7 @@ func (p *genesisParams) predeployStakingSC() (*chain.GenesisAccount, error) {
 	return stakingAccount, nil
 }
 
-<<<<<<< HEAD
-=======
 // validateRewardWallet validates reward wallet flag
-func (p *genesisParams) validateRewardWallet() error {
-	if p.rewardWallet == "" {
-		return errors.New("reward wallet address must be defined")
-	}
-
-	if p.rewardWallet == types.AddressToString(types.ZeroAddress) {
-		return errors.New("reward wallet address must not be zero address")
-	}
-
-	premineInfo, err := parsePremineInfo(p.rewardWallet)
-	if err != nil {
-		return err
-	}
-
-	if premineInfo.amount.Cmp(big.NewInt(0)) < 1 {
-		return errRewardWalletAmountZero
-	}
-
-	return nil
-}
 
 // validatePremineInfo validates whether reserve account (0x0 address) is premined
 func (p *genesisParams) validatePremineInfo() error {
@@ -504,33 +472,9 @@ func (p *genesisParams) validatePremineInfo() error {
 // validateBurnContract validates burn contract. If native token is mintable,
 // burn contract flag must not be set. If native token is non mintable only one burn contract
 // can be set and the specified address will be used to predeploy default EIP1559 burn contract.
-func (p *genesisParams) validateBurnContract() error {
-	if p.isBurnContractEnabled() {
-		burnContractInfo, err := parseBurnContractInfo(p.burnContract)
-		if err != nil {
-			return fmt.Errorf("invalid burn contract info provided: %w", err)
-		}
-
-		if p.nativeTokenConfig.IsMintable {
-			if burnContractInfo.Address != types.ZeroAddress {
-				return errors.New("only zero address is allowed as burn destination for mintable native token")
-			}
-		} else {
-			if burnContractInfo.Address == types.ZeroAddress {
-				return errors.New("it is not allowed to deploy burn contract to 0x0 address")
-			}
-		}
-	}
-
-	return nil
-}
 
 // isBurnContractEnabled returns true in case burn contract info is provided
-func (p *genesisParams) isBurnContractEnabled() bool {
-	return p.burnContract != ""
-}
 
->>>>>>> 4cf4b799 (Ensure premining reserve account (0x0 address) (#1685))
 // extractNativeTokenMetadata parses provided native token metadata (such as name, symbol and decimals count)
 func (p *genesisParams) extractNativeTokenMetadata() error {
 	if p.nativeTokenConfigRaw == "" {
