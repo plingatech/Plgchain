@@ -58,6 +58,8 @@ var (
 	errInvalidEpochSize       = errors.New("epoch size must be greater than 1")
 	errInvalidTokenParams     = errors.New("native token params were not submitted in proper format " +
 		"(<name:symbol:decimals count:mintable flag:[mintable token owner address]>)")
+
+	errReserveAccMustBePremined = errors.New("it is mandatory to premine reserve account (0x0 address)")
 )
 
 type genesisParams struct {
@@ -409,12 +411,7 @@ func (p *genesisParams) initGenesisConfig() error {
 		chainConfig.Genesis.Alloc[staking.AddrStakingContract] = stakingAccount
 	}
 
-	for _, premineRaw := range p.premine {
-		premineInfo, err := parsePremineInfo(premineRaw)
-		if err != nil {
-			return err
-		}
-
+	for _, premineInfo := range p.premineInfos {
 		chainConfig.Genesis.Alloc[premineInfo.address] = &chain.GenesisAccount{
 			Balance: premineInfo.amount,
 		}
@@ -445,8 +442,6 @@ func (p *genesisParams) predeployStakingSC() (*chain.GenesisAccount, error) {
 	return stakingAccount, nil
 }
 
-<<<<<<< HEAD
-=======
 // validateRewardWallet validates reward wallet flag
 
 // validatePremineInfo validates whether reserve account (0x0 address) is premined
@@ -480,7 +475,6 @@ func (p *genesisParams) validatePremineInfo() error {
 
 // isBurnContractEnabled returns true in case burn contract info is provided
 
->>>>>>> a6936e89 (Bug fixes.)
 // extractNativeTokenMetadata parses provided native token metadata (such as name, symbol and decimals count)
 func (p *genesisParams) extractNativeTokenMetadata() error {
 	if p.nativeTokenConfigRaw == "" {
