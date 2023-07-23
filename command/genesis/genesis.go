@@ -1,547 +1,367 @@
 package genesis
 
 import (
-	"errors"
 	"fmt"
-	"math"
-	"os"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/0xPolygon/polygon-edge/chain"
 	"github.com/0xPolygon/polygon-edge/command"
+	"github.com/0xPolygon/polygon-edge/command/genesis/predeploy"
 	"github.com/0xPolygon/polygon-edge/command/helper"
 	"github.com/0xPolygon/polygon-edge/consensus/ibft"
-	"github.com/0xPolygon/polygon-edge/consensus/ibft/fork"
-	"github.com/0xPolygon/polygon-edge/consensus/ibft/signer"
-	"github.com/0xPolygon/polygon-edge/consensus/polybft"
-	"github.com/0xPolygon/polygon-edge/contracts/staking"
-	stakingHelper "github.com/0xPolygon/polygon-edge/helper/staking"
-	"github.com/0xPolygon/polygon-edge/server"
-	"github.com/0xPolygon/polygon-edge/types"
+	"github.com/0xPolygon/polygon-edge/helper/common"
 	"github.com/0xPolygon/polygon-edge/validators"
+	"github.com/spf13/cobra"
 )
 
-const (
-	dirFlag               = "dir"
-	nameFlag              = "name"
-	premineFlag           = "premine"
-	chainIDFlag           = "chain-id"
-	epochSizeFlag         = "epoch-size"
-	epochRewardFlag       = "epoch-reward"
-	blockGasLimitFlag     = "block-gas-limit"
-	burnContractFlag      = "burn-contract"
-	posFlag               = "pos"
-	minValidatorCount     = "min-validator-count"
-	maxValidatorCount     = "max-validator-count"
-	nativeTokenConfigFlag = "native-token-config"
-
-	defaultNativeTokenName     = "Polygon"
-	defaultNativeTokenSymbol   = "MATIC"
-	defaultNativeTokenDecimals = uint8(18)
-	minNativeTokenParamsNumber = 4
-)
-
-// Legacy flags that need to be preserved for running clients
-const (
-	chainIDFlagLEGACY = "chainid"
-)
-
-var (
-	params = &genesisParams{}
-)
-
-var (
-	errValidatorsNotSpecified = errors.New("validator information not specified")
-	errUnsupportedConsensus   = errors.New("specified consensusRaw not supported")
-	errInvalidEpochSize       = errors.New("epoch size must be greater than 1")
-	errInvalidTokenParams     = errors.New("native token params were not submitted in proper format " +
-		"(<name:symbol:decimals count:mintable flag:[mintable token owner address]>)")
-
-	errReserveAccMustBePremined = errors.New("it is mandatory to premine reserve account (0x0 address)")
-)
-
-type genesisParams struct {
-	genesisPath         string
-	name                string
-	consensusRaw        string
-	validatorPrefixPath string
-	premine             []string
-	bootnodes           []string
-	ibftValidators      validators.Validators
-
-	ibftValidatorsRaw []string
-
-	chainID   uint64
-	epochSize uint64
-
-	blockGasLimit uint64
-	isPos         bool
-
-	burnContracts []string
-
-	minNumValidators uint64
-	maxNumValidators uint64
-
-	rawIBFTValidatorType string
-	ibftValidatorType    validators.ValidatorType
-
-	extraData []byte
-	consensus server.ConsensusType
-
-	consensusEngineConfig map[string]interface{}
-
-	genesisConfig *chain.Chain
-
-	// PolyBFT
-	validatorsPath       string
-	validatorsPrefixPath string
-	stakes               []string
-	validators           []string
-	sprintSize           uint64
-	blockTime            time.Duration
-	epochReward          uint64
-	blockTimeDrift       uint64
-
-	initialStateRoot string
-
-	// access lists
-	contractDeployerAllowListAdmin   []string
-	contractDeployerAllowListEnabled []string
-	contractDeployerBlockListAdmin   []string
-	contractDeployerBlockListEnabled []string
-	transactionsAllowListAdmin       []string
-	transactionsAllowListEnabled     []string
-	transactionsBlockListAdmin       []string
-	transactionsBlockListEnabled     []string
-	bridgeAllowListAdmin             []string
-	bridgeAllowListEnabled           []string
-	bridgeBlockListAdmin             []string
-	bridgeBlockListEnabled           []string
-
-	nativeTokenConfigRaw string
-	nativeTokenConfig    *polybft.TokenConfig
-
-	premineInfos []*premineInfo
-}
-
-func (p *genesisParams) validateFlags() error {
-	// Check if the consensusRaw is supported
-	if !server.ConsensusSupported(p.consensusRaw) {
-		return errUnsupportedConsensus
+func GetCommand() *cobra.Command {
+	genesisCmd := &cobra.Command{
+		Use:     "genesis",
+		Short:   "Generates the genesis configuration file with the passed in parameters",
+		PreRunE: preRunCommand,
+		Run:     runCommand,
 	}
 
-	// Check if validator information is set at all
-	if p.isIBFTConsensus() &&
-		!p.areValidatorsSetManually() &&
-		!p.areValidatorsSetByPrefix() {
-		return errValidatorsNotSpecified
-	}
+	setFlags(genesisCmd)
+	setLegacyFlags(genesisCmd)
 
-	if p.isPolyBFTConsensus() {
-		if err := p.extractNativeTokenMetadata(); err != nil {
-			return err
-		}
-
-		if err := p.validatePremineInfo(); err != nil {
-			return err
-		}
-	}
-
-	// Check if the genesis file already exists
-	if generateError := verifyGenesisExistence(p.genesisPath); generateError != nil {
-		return errors.New(generateError.GetMessage())
-	}
-
-	// Check that the epoch size is correct
-	if p.epochSize < 2 && (p.isIBFTConsensus() || p.isPolyBFTConsensus()) {
-		// Epoch size must be greater than 1, so new transactions have a chance to be added to a block.
-		// Otherwise, every block would be an endblock (meaning it will not have any transactions).
-		// Check is placed here to avoid additional parsing if epochSize < 2
-		return errInvalidEpochSize
-	}
-
-	// Validate validatorsPath only if validators information were not provided via CLI flag
-	if len(p.validators) == 0 {
-		if _, err := os.Stat(p.validatorsPath); err != nil {
-			return fmt.Errorf("invalid validators path ('%s') provided. Error: %w", p.validatorsPath, err)
-		}
-	}
-
-	// Validate min and max validators number
-	return command.ValidateMinMaxValidatorsNumber(p.minNumValidators, p.maxNumValidators)
-}
-
-func (p *genesisParams) isIBFTConsensus() bool {
-	return server.ConsensusType(p.consensusRaw) == server.IBFTConsensus
-}
-
-func (p *genesisParams) isPolyBFTConsensus() bool {
-	return server.ConsensusType(p.consensusRaw) == server.PolyBFTConsensus
-}
-
-func (p *genesisParams) areValidatorsSetManually() bool {
-	return len(p.ibftValidatorsRaw) != 0
-}
-
-func (p *genesisParams) areValidatorsSetByPrefix() bool {
-	return p.validatorPrefixPath != ""
-}
-
-func (p *genesisParams) getRequiredFlags() []string {
-	if p.isIBFTConsensus() {
-		return []string{
-			command.BootnodeFlag,
-		}
-	}
-
-	return []string{}
-}
-
-func (p *genesisParams) initRawParams() error {
-	p.consensus = server.ConsensusType(p.consensusRaw)
-
-	if p.consensus == server.PolyBFTConsensus {
-		return nil
-	}
-
-	if err := p.initIBFTValidatorType(); err != nil {
-		return err
-	}
-
-	if err := p.initValidatorSet(); err != nil {
-		return err
-	}
-
-	p.initIBFTExtraData()
-	p.initConsensusEngineConfig()
-
-	return nil
-}
-
-// setValidatorSetFromCli sets validator set from cli command
-func (p *genesisParams) setValidatorSetFromCli() error {
-	if len(p.ibftValidatorsRaw) == 0 {
-		return nil
-	}
-
-	newValidators, err := validators.ParseValidators(p.ibftValidatorType, p.ibftValidatorsRaw)
-	if err != nil {
-		return err
-	}
-
-	if err = p.ibftValidators.Merge(newValidators); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// setValidatorSetFromPrefixPath sets validator set from prefix path
-func (p *genesisParams) setValidatorSetFromPrefixPath() error {
-	if !p.areValidatorsSetByPrefix() {
-		return nil
-	}
-
-	validators, err := command.GetValidatorsFromPrefixPath(
-		p.validatorPrefixPath,
-		p.ibftValidatorType,
+	genesisCmd.AddCommand(
+		// genesis predeploy
+		predeploy.GetCommand(),
 	)
 
-	if err != nil {
-		return fmt.Errorf("failed to read from prefix: %w", err)
+	return genesisCmd
+}
+
+func setFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(
+		&params.genesisPath,
+		dirFlag,
+		fmt.Sprintf("./%s", command.DefaultGenesisFileName),
+		"the directory for the Polygon Edge genesis data",
+	)
+
+	cmd.Flags().Uint64Var(
+		&params.chainID,
+		chainIDFlag,
+		command.DefaultChainID,
+		"the ID of the chain",
+	)
+
+	cmd.Flags().StringVar(
+		&params.name,
+		nameFlag,
+		command.DefaultChainName,
+		"the name for the chain",
+	)
+
+	cmd.Flags().StringArrayVar(
+		&params.premine,
+		premineFlag,
+		[]string{},
+		fmt.Sprintf(
+			"the premined accounts and balances (format: <address>[:<balance>]). Default premined balance: %d",
+			command.DefaultPremineBalance,
+		),
+	)
+
+	cmd.Flags().Uint64Var(
+		&params.blockGasLimit,
+		blockGasLimitFlag,
+		command.DefaultGenesisGasLimit,
+		"the maximum amount of gas used by all transactions in a block",
+	)
+
+	cmd.Flags().StringArrayVar(
+		&params.burnContracts,
+		burnContractFlag,
+		[]string{},
+		"the burn contract blocks and addresses (format: <block>:<address>)",
+	)
+
+	cmd.Flags().StringArrayVar(
+		&params.bootnodes,
+		command.BootnodeFlag,
+		[]string{},
+		"multiAddr URL for p2p discovery bootstrap. This flag can be used multiple times",
+	)
+
+	cmd.Flags().StringVar(
+		&params.consensusRaw,
+		command.ConsensusFlag,
+		string(command.DefaultConsensus),
+		"the consensus protocol to be used",
+	)
+
+	cmd.Flags().Uint64Var(
+		&params.epochSize,
+		epochSizeFlag,
+		ibft.DefaultEpochSize,
+		"the epoch size for the chain",
+	)
+
+	// IBFT Validators
+	{
+		cmd.Flags().StringVar(
+			&params.rawIBFTValidatorType,
+			command.IBFTValidatorTypeFlag,
+			string(validators.BLSValidatorType),
+			"the type of validators in IBFT",
+		)
+
+		cmd.Flags().StringVar(
+			&params.validatorPrefixPath,
+			command.IBFTValidatorPrefixFlag,
+			"",
+			"prefix path for validator folder directory. "+
+				"Needs to be present if ibft-validator is omitted",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.ibftValidatorsRaw,
+			command.IBFTValidatorFlag,
+			[]string{},
+			"addresses to be used as IBFT validators, can be used multiple times. "+
+				"Needs to be present if ibft-validators-prefix-path is omitted",
+		)
+
+		// --ibft-validator-prefix-path & --ibft-validator can't be given at same time
+		cmd.MarkFlagsMutuallyExclusive(command.IBFTValidatorPrefixFlag, command.IBFTValidatorFlag)
 	}
 
-	if err := p.ibftValidators.Merge(validators); err != nil {
+	// PoS
+	{
+		cmd.Flags().BoolVar(
+			&params.isPos,
+			posFlag,
+			false,
+			"the flag indicating that the client should use Proof of Stake IBFT. Defaults to "+
+				"Proof of Authority if flag is not provided or false",
+		)
+
+		cmd.Flags().Uint64Var(
+			&params.minNumValidators,
+			minValidatorCount,
+			1,
+			"the minimum number of validators in the validator set for PoS",
+		)
+
+		cmd.Flags().Uint64Var(
+			&params.maxNumValidators,
+			maxValidatorCount,
+			common.MaxSafeJSInt,
+			"the maximum number of validators in the validator set for PoS",
+		)
+	}
+
+	// PolyBFT
+	{
+		cmd.Flags().StringVar(
+			&params.validatorsPath,
+			validatorsPathFlag,
+			"./",
+			"root path containing polybft validators secrets",
+		)
+
+		cmd.Flags().StringVar(
+			&params.validatorsPrefixPath,
+			validatorsPrefixFlag,
+			defaultValidatorPrefixPath,
+			"folder prefix names for polybft validators secrets",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.validators,
+			validatorsFlag,
+			[]string{},
+			"validators defined by user (format: <P2P multi address>:<ECDSA address>:<public BLS key>:<BLS signature>)",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.stakes,
+			stakeFlag,
+			[]string{},
+			fmt.Sprintf(
+				"validators staked amount (format: <address>[:<amount>]). Default stake amount: %d",
+				command.DefaultStake,
+			),
+		)
+
+		cmd.MarkFlagsMutuallyExclusive(validatorsFlag, validatorsPathFlag)
+		cmd.MarkFlagsMutuallyExclusive(validatorsFlag, validatorsPrefixFlag)
+
+		cmd.Flags().Uint64Var(
+			&params.sprintSize,
+			sprintSizeFlag,
+			defaultSprintSize,
+			"the number of block included into a sprint",
+		)
+
+		cmd.Flags().DurationVar(
+			&params.blockTime,
+			blockTimeFlag,
+			defaultBlockTime,
+			"the predefined period which determines block creation frequency",
+		)
+
+		cmd.Flags().Uint64Var(
+			&params.epochReward,
+			epochRewardFlag,
+			defaultEpochReward,
+			"reward size for block sealing",
+		)
+
+		// regenesis flag that allows to start from non-empty database
+		cmd.Flags().StringVar(
+			&params.initialStateRoot,
+			trieRootFlag,
+			"",
+			"trie root from the corresponding triedb",
+		)
+
+		cmd.Flags().StringVar(
+			&params.nativeTokenConfigRaw,
+			nativeTokenConfigFlag,
+			"",
+			"native token configuration, provided in the following format: "+
+				"<name:symbol:decimals count:mintable flag:[mintable token owner address]>",
+		)
+
+		cmd.Flags().Uint64Var(
+			&params.blockTimeDrift,
+			blockTimeDriftFlag,
+			defaultBlockTimeDrift,
+			"configuration for block time drift value (in seconds)",
+		)
+	}
+
+	// Access Control Lists
+	{
+		cmd.Flags().StringArrayVar(
+			&params.contractDeployerAllowListAdmin,
+			contractDeployerAllowListAdminFlag,
+			[]string{},
+			"list of addresses to use as admin accounts in the contract deployer allow list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.contractDeployerAllowListEnabled,
+			contractDeployerAllowListEnabledFlag,
+			[]string{},
+			"list of addresses to enable by default in the contract deployer allow list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.contractDeployerBlockListAdmin,
+			contractDeployerBlockListAdminFlag,
+			[]string{},
+			"list of addresses to use as admin accounts in the contract deployer block list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.contractDeployerBlockListEnabled,
+			contractDeployerBlockListEnabledFlag,
+			[]string{},
+			"list of addresses to enable by default in the contract deployer block list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.transactionsAllowListAdmin,
+			transactionsAllowListAdminFlag,
+			[]string{},
+			"list of addresses to use as admin accounts in the transactions allow list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.transactionsAllowListEnabled,
+			transactionsAllowListEnabledFlag,
+			[]string{},
+			"list of addresses to enable by default in the transactions allow list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.transactionsBlockListAdmin,
+			transactionsBlockListAdminFlag,
+			[]string{},
+			"list of addresses to use as admin accounts in the transactions block list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.transactionsBlockListEnabled,
+			transactionsBlockListEnabledFlag,
+			[]string{},
+			"list of addresses to enable by default in the transactions block list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.bridgeAllowListAdmin,
+			bridgeAllowListAdminFlag,
+			[]string{},
+			"list of addresses to use as admin accounts in the bridge allow list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.bridgeAllowListEnabled,
+			bridgeAllowListEnabledFlag,
+			[]string{},
+			"list of addresses to enable by default in the bridge allow list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.bridgeBlockListAdmin,
+			bridgeBlockListAdminFlag,
+			[]string{},
+			"list of addresses to use as admin accounts in the bridge block list",
+		)
+
+		cmd.Flags().StringArrayVar(
+			&params.bridgeBlockListEnabled,
+			bridgeBlockListEnabledFlag,
+			[]string{},
+			"list of addresses to enable by default in the bridge block list",
+		)
+	}
+}
+
+// setLegacyFlags sets the legacy flags to preserve backwards compatibility
+// with running partners
+func setLegacyFlags(cmd *cobra.Command) {
+	// Legacy chainid flag
+	cmd.Flags().Uint64Var(
+		&params.chainID,
+		chainIDFlagLEGACY,
+		command.DefaultChainID,
+		"the ID of the chain",
+	)
+
+	_ = cmd.Flags().MarkHidden(chainIDFlagLEGACY)
+}
+
+func preRunCommand(cmd *cobra.Command, _ []string) error {
+	if err := params.validateFlags(); err != nil {
 		return err
 	}
 
-	return nil
+	helper.SetRequiredFlags(cmd, params.getRequiredFlags())
+
+	return params.initRawParams()
 }
 
-func (p *genesisParams) initIBFTValidatorType() error {
+func runCommand(cmd *cobra.Command, _ []string) {
+	outputter := command.InitializeOutputter(cmd)
+	defer outputter.WriteOutput()
+
 	var err error
-	if p.ibftValidatorType, err = validators.ParseValidatorType(p.rawIBFTValidatorType); err != nil {
-		return err
+
+	if params.isPolyBFTConsensus() {
+		err = params.generatePolyBftChainConfig(outputter)
+	} else {
+		err = params.generateGenesis()
 	}
 
-	return nil
-}
-
-func (p *genesisParams) initValidatorSet() error {
-	p.ibftValidators = validators.NewValidatorSetFromType(p.ibftValidatorType)
-
-	// Set validator set
-	// Priority goes to cli command over prefix path
-	if err := p.setValidatorSetFromPrefixPath(); err != nil {
-		return err
-	}
-
-	if err := p.setValidatorSetFromCli(); err != nil {
-		return err
-	}
-
-	// Validate if validator number exceeds max number
-	if ok := p.isValidatorNumberValid(); !ok {
-		return command.ErrValidatorNumberExceedsMax
-	}
-
-	return nil
-}
-
-func (p *genesisParams) isValidatorNumberValid() bool {
-	return p.ibftValidators == nil || uint64(p.ibftValidators.Len()) <= p.maxNumValidators
-}
-
-func (p *genesisParams) initIBFTExtraData() {
-	if p.consensus != server.IBFTConsensus {
-		return
-	}
-
-	var committedSeal signer.Seals
-
-	switch p.ibftValidatorType {
-	case validators.ECDSAValidatorType:
-		committedSeal = new(signer.SerializedSeal)
-	case validators.BLSValidatorType:
-		committedSeal = new(signer.AggregatedSeal)
-	}
-
-	ibftExtra := &signer.IstanbulExtra{
-		Validators:     p.ibftValidators,
-		ProposerSeal:   []byte{},
-		CommittedSeals: committedSeal,
-	}
-
-	p.extraData = make([]byte, signer.IstanbulExtraVanity)
-	p.extraData = ibftExtra.MarshalRLPTo(p.extraData)
-}
-
-func (p *genesisParams) initConsensusEngineConfig() {
-	if p.consensus != server.IBFTConsensus {
-		p.consensusEngineConfig = map[string]interface{}{
-			p.consensusRaw: map[string]interface{}{},
-		}
-
-		return
-	}
-
-	if p.isPos {
-		p.initIBFTEngineMap(fork.PoS)
-
-		return
-	}
-
-	p.initIBFTEngineMap(fork.PoA)
-}
-
-func (p *genesisParams) initIBFTEngineMap(ibftType fork.IBFTType) {
-	p.consensusEngineConfig = map[string]interface{}{
-		string(server.IBFTConsensus): map[string]interface{}{
-			fork.KeyType:          ibftType,
-			fork.KeyValidatorType: p.ibftValidatorType,
-			fork.KeyBlockTime:     p.blockTime,
-			ibft.KeyEpochSize:     p.epochSize,
-		},
-	}
-}
-
-func (p *genesisParams) generateGenesis() error {
-	if err := p.initGenesisConfig(); err != nil {
-		return err
-	}
-
-	if err := helper.WriteGenesisConfigToDisk(
-		p.genesisConfig,
-		p.genesisPath,
-	); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *genesisParams) initGenesisConfig() error {
-	// Disable london hardfork if burn contract address is not provided
-	enabledForks := chain.AllForksEnabled
-	if len(p.burnContracts) == 0 {
-		enabledForks.RemoveFork(chain.London)
-	}
-
-	chainConfig := &chain.Chain{
-		Name: p.name,
-		Genesis: &chain.Genesis{
-			GasLimit:   p.blockGasLimit,
-			Difficulty: 1,
-			Alloc:      map[types.Address]*chain.GenesisAccount{},
-			ExtraData:  p.extraData,
-			GasUsed:    command.DefaultGenesisGasUsed,
-		},
-		Params: &chain.Params{
-			ChainID: int64(p.chainID),
-			Forks:   enabledForks,
-			Engine:  p.consensusEngineConfig,
-		},
-		Bootnodes: p.bootnodes,
-	}
-
-	if len(p.burnContracts) > 0 {
-		chainConfig.Genesis.BaseFee = command.DefaultGenesisBaseFee
-		chainConfig.Genesis.BaseFeeEM = command.DefaultGenesisBaseFeeEM
-		chainConfig.Params.BurnContract = make(map[uint64]string, len(p.burnContracts))
-
-		for _, burnContract := range p.burnContracts {
-			block, address, err := parseBurnContractInfo(burnContract)
-			if err != nil {
-				return err
-			}
-
-			chainConfig.Params.BurnContract[block] = address.String()
-		}
-	}
-
-	// Predeploy staking smart contract if needed
-	if p.shouldPredeployStakingSC() {
-		stakingAccount, err := p.predeployStakingSC()
-		if err != nil {
-			return err
-		}
-
-		chainConfig.Genesis.Alloc[staking.AddrStakingContract] = stakingAccount
-	}
-
-	for _, premineInfo := range p.premineInfos {
-		chainConfig.Genesis.Alloc[premineInfo.address] = &chain.GenesisAccount{
-			Balance: premineInfo.amount,
-		}
-	}
-
-	p.genesisConfig = chainConfig
-
-	return nil
-}
-
-func (p *genesisParams) shouldPredeployStakingSC() bool {
-	// If the consensus selected is IBFT / Dev and the mechanism is Proof of Stake,
-	// deploy the Staking SC
-	return p.isPos && (p.consensus == server.IBFTConsensus || p.consensus == server.DevConsensus)
-}
-
-func (p *genesisParams) predeployStakingSC() (*chain.GenesisAccount, error) {
-	stakingAccount, predeployErr := stakingHelper.PredeployStakingSC(
-		p.ibftValidators,
-		stakingHelper.PredeployParams{
-			MinValidatorCount: p.minNumValidators,
-			MaxValidatorCount: p.maxNumValidators,
-		})
-	if predeployErr != nil {
-		return nil, predeployErr
-	}
-
-	return stakingAccount, nil
-}
-
-// validateRewardWallet validates reward wallet flag
-
-// validatePremineInfo validates whether reserve account (0x0 address) is premined
-func (p *genesisParams) validatePremineInfo() error {
-	p.premineInfos = make([]*premineInfo, 0, len(p.premine))
-	isReserveAccPremined := false
-
-	for _, premine := range p.premine {
-		premineInfo, err := parsePremineInfo(premine)
-		if err != nil {
-			return fmt.Errorf("invalid premine balance amount provided: %w", err)
-		}
-
-		p.premineInfos = append(p.premineInfos, premineInfo)
-
-		if premineInfo.address == types.ZeroAddress {
-			isReserveAccPremined = true
-		}
-	}
-
-	if !isReserveAccPremined {
-		return errReserveAccMustBePremined
-	}
-
-	return nil
-}
-
-// validateBurnContract validates burn contract. If native token is mintable,
-// burn contract flag must not be set. If native token is non mintable only one burn contract
-// can be set and the specified address will be used to predeploy default EIP1559 burn contract.
-
-// isBurnContractEnabled returns true in case burn contract info is provided
-
-// extractNativeTokenMetadata parses provided native token metadata (such as name, symbol and decimals count)
-func (p *genesisParams) extractNativeTokenMetadata() error {
-	if p.nativeTokenConfigRaw == "" {
-		p.nativeTokenConfig = &polybft.TokenConfig{
-			Name:       defaultNativeTokenName,
-			Symbol:     defaultNativeTokenSymbol,
-			Decimals:   defaultNativeTokenDecimals,
-			IsMintable: false,
-			Owner:      types.ZeroAddress,
-		}
-
-		return nil
-	}
-
-	params := strings.Split(p.nativeTokenConfigRaw, ":")
-	if len(params) < minNativeTokenParamsNumber {
-		return errInvalidTokenParams
-	}
-
-	// name
-	name := strings.TrimSpace(params[0])
-	if name == "" {
-		return errInvalidTokenParams
-	}
-
-	// symbol
-	symbol := strings.TrimSpace(params[1])
-	if symbol == "" {
-		return errInvalidTokenParams
-	}
-
-	// decimals
-	decimals, err := strconv.ParseUint(strings.TrimSpace(params[2]), 10, 8)
-	if err != nil || decimals > math.MaxUint8 {
-		return errInvalidTokenParams
-	}
-
-	// is mintable native token used
-	isMintable, err := strconv.ParseBool(strings.TrimSpace(params[3]))
 	if err != nil {
-		return errInvalidTokenParams
+		outputter.SetError(err)
+
+		return
 	}
 
-	// in case it is mintable native token, it is expected to have 5 parameters provided
-	if isMintable && len(params) != minNativeTokenParamsNumber+1 {
-		return errInvalidTokenParams
-	}
-
-	// owner address
-	owner := types.ZeroAddress
-	if isMintable {
-		owner = types.StringToAddress(strings.TrimSpace(params[4]))
-	}
-
-	p.nativeTokenConfig = &polybft.TokenConfig{
-		Name:       name,
-		Symbol:     symbol,
-		Decimals:   uint8(decimals),
-		IsMintable: isMintable,
-		Owner:      owner,
-	}
-
-	return nil
-}
-
-func (p *genesisParams) getResult() command.CommandResult {
-	return &GenesisResult{
-		Message: fmt.Sprintf("\nGenesis written to %s\n", p.genesisPath),
-	}
+	outputter.SetCommandResult(params.getResult())
 }
