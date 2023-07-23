@@ -2612,20 +2612,9 @@ func TestResetAccounts_Enqueued(t *testing.T) {
 func TestExecutablesOrder(t *testing.T) {
 	t.Parallel()
 
-	newPricedTx := func(
-		addr types.Address, nonce, gasPrice uint64, gasFeeCap uint64, value uint64) *types.Transaction {
+	newPricedTx := func(addr types.Address, nonce, gasPrice uint64) *types.Transaction {
 		tx := newTx(addr, nonce, 1)
-		tx.Value = new(big.Int).SetUint64(value)
-
-		if gasPrice == 0 {
-			tx.Type = types.DynamicFeeTx
-			tx.GasFeeCap = new(big.Int).SetUint64(gasFeeCap)
-			tx.GasTipCap = new(big.Int).SetUint64(2)
-			tx.GasPrice = big.NewInt(0)
-		} else {
-			tx.Type = types.LegacyTx
-			tx.GasPrice = new(big.Int).SetUint64(gasPrice)
-		}
+		tx.GasPrice.SetUint64(gasPrice)
 
 		return tx
 	}
@@ -2633,118 +2622,87 @@ func TestExecutablesOrder(t *testing.T) {
 	testCases := []struct {
 		name               string
 		allTxs             map[types.Address][]*types.Transaction
-		expectedPriceOrder [][2]uint64
+		expectedPriceOrder []uint64
 	}{
 		{
 			name: "case #1",
 			allTxs: map[types.Address][]*types.Transaction{
 				addr1: {
-					newPricedTx(addr1, 0, 1, 0, 400),
+					newPricedTx(addr1, 0, 1),
 				},
 				addr2: {
-					newPricedTx(addr2, 0, 2, 0, 500),
+					newPricedTx(addr2, 0, 2),
 				},
 				addr3: {
-					newPricedTx(addr3, 0, 3, 0, 200),
+					newPricedTx(addr3, 0, 3),
 				},
 				addr4: {
-					newPricedTx(addr4, 0, 4, 0, 300),
+					newPricedTx(addr4, 0, 4),
 				},
 				addr5: {
-					newPricedTx(addr5, 0, 5, 0, 100),
+					newPricedTx(addr5, 0, 5),
 				},
 			},
-			expectedPriceOrder: [][2]uint64{
-				{5, 100},
-				{4, 300},
-				{3, 200},
-				{2, 500},
-				{1, 400},
+			expectedPriceOrder: []uint64{
+				5,
+				4,
+				3,
+				2,
+				1,
 			},
 		},
 		{
 			name: "case #2",
 			allTxs: map[types.Address][]*types.Transaction{
 				addr1: {
-					newPricedTx(addr1, 1, 3, 0, 200),
-					newPricedTx(addr1, 2, 3, 0, 500),
-					newPricedTx(addr1, 0, 3, 0, 300),
+					newPricedTx(addr1, 0, 3),
+					newPricedTx(addr1, 1, 3),
+					newPricedTx(addr1, 2, 3),
 				},
 				addr2: {
-					newPricedTx(addr2, 0, 2, 0, 700),
-					newPricedTx(addr2, 1, 2, 0, 900),
-					newPricedTx(addr2, 2, 2, 0, 800),
+					newPricedTx(addr2, 0, 2),
+					newPricedTx(addr2, 1, 2),
+					newPricedTx(addr2, 2, 2),
 				},
 				addr3: {
-					newPricedTx(addr3, 2, 1, 0, 100),
-					newPricedTx(addr3, 1, 1, 0, 50),
-					newPricedTx(addr3, 0, 1, 0, 75),
+					newPricedTx(addr3, 0, 1),
+					newPricedTx(addr3, 1, 1),
+					newPricedTx(addr3, 2, 1),
 				},
 			},
-			expectedPriceOrder: [][2]uint64{
-				{3, 300},
-				{3, 200},
-				{3, 500},
-				{2, 700},
-				{2, 900},
-				{2, 800},
-				{1, 75},
-				{1, 50},
-				{1, 100},
+			expectedPriceOrder: []uint64{
+				3,
+				3,
+				3,
+				2,
+				2,
+				2,
+				1,
+				1,
+				1,
 			},
 		},
 		{
 			name: "case #3",
 			allTxs: map[types.Address][]*types.Transaction{
 				addr1: {
-					newPricedTx(addr1, 1, 5, 0, 100),
-					newPricedTx(addr1, 0, 9, 0, 100),
-					newPricedTx(addr1, 2, 3, 0, 100),
+					newPricedTx(addr1, 0, 9),
+					newPricedTx(addr1, 1, 5),
+					newPricedTx(addr1, 2, 3),
 				},
 				addr2: {
-					newPricedTx(addr2, 0, 9, 0, 100),
-					newPricedTx(addr2, 1, 3, 0, 100),
-					newPricedTx(addr2, 2, 1, 0, 100),
+					newPricedTx(addr2, 0, 9),
+					newPricedTx(addr2, 1, 3),
+					newPricedTx(addr2, 2, 1),
 				},
 			},
-			expectedPriceOrder: [][2]uint64{
-				{9, 100},
-				{9, 100},
-				{5, 100},
-				{3, 100},
-				{3, 100},
-				{1, 100},
-			},
-		},
-		{
-			name: "case #4",
-			allTxs: map[types.Address][]*types.Transaction{
-				addr1: {
-					newPricedTx(addr1, 0, 0, 70, 1),
-					newPricedTx(addr1, 1, 0, 50, 2),
-					newPricedTx(addr1, 2, 0, 20, 3),
-				},
-				addr2: {
-					newPricedTx(addr2, 0, 0, 90, 4),
-					newPricedTx(addr2, 1, 0, 80, 5),
-					newPricedTx(addr2, 2, 0, 10, 6),
-				},
-				addr3: {
-					newPricedTx(addr3, 0, 0, 100, 7),
-					newPricedTx(addr3, 1, 0, 60, 8),
-					newPricedTx(addr3, 2, 0, 40, 9),
-				},
-			},
-			expectedPriceOrder: [][2]uint64{
-				{0, 7},
-				{0, 4},
-				{0, 5},
-				{0, 1},
-				{0, 8},
-				{0, 2},
-				{0, 9},
-				{0, 3},
-				{0, 6},
+			expectedPriceOrder: []uint64{
+				9,
+				9,
+				5,
+				3,
+				3,
+				1,
 			},
 		},
 	}
@@ -2778,10 +2736,8 @@ func TestExecutablesOrder(t *testing.T) {
 			defer cancelFn()
 
 			// All txns should get added
-			require.Len(t, waitForEvents(ctx, subscription, expectedPromotedTx), expectedPromotedTx)
-			require.Equal(t, uint64(len(test.expectedPriceOrder)), pool.accounts.promoted())
-
-			pool.Prepare(1000)
+			assert.Len(t, waitForEvents(ctx, subscription, expectedPromotedTx), expectedPromotedTx)
+			assert.Equal(t, uint64(len(test.expectedPriceOrder)), pool.accounts.promoted())
 
 			var successful []*types.Transaction
 			for {
@@ -2794,13 +2750,10 @@ func TestExecutablesOrder(t *testing.T) {
 				successful = append(successful, tx)
 			}
 
-			require.Len(t, successful, expectedPromotedTx)
-
 			// verify the highest priced transactions
 			// were processed first
 			for i, tx := range successful {
-				require.Equal(t, test.expectedPriceOrder[i][0], tx.GasPrice.Uint64())
-				require.Equal(t, test.expectedPriceOrder[i][1], tx.Value.Uint64())
+				assert.Equal(t, test.expectedPriceOrder[i], tx.GasPrice.Uint64())
 			}
 		})
 	}

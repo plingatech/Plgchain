@@ -208,7 +208,7 @@ func NewTxPool(
 		logger:      logger.Named("txpool"),
 		forks:       forks,
 		store:       store,
-		executables: newPricesQueue(0, nil),
+		executables: newPricedQueue(),
 		accounts:    accountsMap{maxEnqueuedLimit: config.MaxAccountEnqueued},
 		index:       lookupMap{all: make(map[types.Hash]*types.Transaction)},
 		gauge:       slotGauge{height: 0, max: config.MaxSlots},
@@ -332,14 +332,21 @@ func (p *TxPool) AddTx(tx *types.Transaction) error {
 // Prepare generates all the transactions
 // ready for execution. (primaries)
 func (p *TxPool) Prepare(baseFee uint64) {
+	// clear from previous round
+	if p.executables.length() != 0 {
+		p.executables.clear()
+	}
+
 	// set base fee
-	atomic.StoreUint64(&p.baseFee, baseFee)
+	p.updateBaseFee(baseFee)
 
 	// fetch primary from each account
 	primaries := p.accounts.getPrimaries()
 
-	// create new executables queue with base fee and initial transactions (primaries)
-	p.executables = newPricesQueue(baseFee, primaries)
+	// push primaries to the executables queue
+	for _, tx := range primaries {
+		p.executables.push(tx)
+	}
 }
 
 // Peek returns the best-price selected
@@ -1035,6 +1042,12 @@ func (p *TxPool) getOrCreateAccount(newAddr types.Address) *account {
 // Length returns the total number of all promoted transactions.
 func (p *TxPool) Length() uint64 {
 	return p.accounts.promoted()
+}
+
+// updateBaseFee updates base fee in the tx pool and priced queue
+func (p *TxPool) updateBaseFee(baseFee uint64) {
+	atomic.StoreUint64(&p.baseFee, baseFee)
+	atomic.StoreUint64(&p.executables.queue.baseFee, baseFee)
 }
 
 // toHash returns the hash(es) of given transaction(s)
