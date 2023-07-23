@@ -18,9 +18,9 @@ type transactionOrHash interface {
 
 type transaction struct {
 	Nonce       argUint64      `json:"nonce"`
-	GasPrice    *argBig        `json:"gasPrice,omitempty"`
-	GasTipCap   *argBig        `json:"maxPriorityFeePerGas,omitempty"`
-	GasFeeCap   *argBig        `json:"maxFeePerGas,omitempty"`
+	GasPrice    argBig         `json:"gasPrice"`
+	GasTipCap   *argBig        `json:"gasTipCap,omitempty"`
+	GasFeeCap   *argBig        `json:"gasFeeCap,omitempty"`
 	Gas         argUint64      `json:"gas"`
 	To          *types.Address `json:"to"`
 	Value       argBig         `json:"value"`
@@ -59,6 +59,7 @@ func toTransaction(
 	txIndex *int,
 ) *transaction {
 	res := &transaction{
+<<<<<<< HEAD
 		Nonce:       argUint64(t.Nonce),
 		Gas:         argUint64(t.Gas),
 		To:          t.To,
@@ -77,6 +78,20 @@ func toTransaction(
 	if t.GasPrice != nil {
 		gasPrice := argBig(*t.GasPrice)
 		res.GasPrice = &gasPrice
+=======
+		Nonce:    argUint64(t.Nonce),
+		GasPrice: argBig(*t.GasPrice),
+		Gas:      argUint64(t.Gas),
+		To:       t.To,
+		Value:    argBig(*t.Value),
+		Input:    t.Input,
+		V:        argBig(*t.V),
+		R:        argBig(*t.R),
+		S:        argBig(*t.S),
+		Hash:     t.Hash,
+		From:     t.From,
+		Type:     argUint64(t.Type),
+>>>>>>> parent of 242c15de (Jp/hotfix optional gas price in rpc transaction type (#1699))
 	}
 
 	if t.GasTipCap != nil {
