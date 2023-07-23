@@ -165,14 +165,10 @@ func GetNextNonce(address types.Address, number BlockNumber, store nonceGetter) 
 	return acc.Nonce, nil
 }
 
-<<<<<<< HEAD
-func DecodeTxn(arg *txnArgs, store nonceGetter) (*types.Transaction, error) {
-=======
 func DecodeTxn(arg *txnArgs, blockNumber uint64, store nonceGetter) (*types.Transaction, error) {
 	if arg == nil {
 		return nil, errors.New("missing value for required argument 0")
 	}
->>>>>>> a6ed9ea3 (EVM-732 Tx hash calculation should include tx type and chainID (#1706))
 	// set default values
 	if arg.From == nil {
 		arg.From = &types.ZeroAddress
