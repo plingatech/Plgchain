@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/0xPolygon/polygon-edge/versioning"
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/go-hclog"
 )
@@ -323,7 +324,7 @@ func (j *JSONRPC) handleGetRequest(writer io.Writer) {
 	data := &GetResponse{
 		Name:    j.config.ChainName,
 		ChainID: j.config.ChainID,
-		Version: "v0.0.1",
+		Version: versioning.Version,
 	}
 
 	resp, err := json.Marshal(data)
