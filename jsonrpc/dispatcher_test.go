@@ -334,7 +334,7 @@ func TestDispatcherBatchRequest(t *testing.T) {
 			append([]byte{0x20, 0x20, 0x09, 0x0A, 0x0A, 0x0D}, []byte(`[
 				{"id":1,"jsonrpc":"2.0","method":"eth_getBalance","params":["0x1", true]},
 				{"id":2,"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x2", true]},
-				{"id":3,"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x3", true]},
+				{"id":3,"jsonrpc":"2.0","method":"","params":["0x3", true]},
 				{"id":4,"jsonrpc":"2.0","method": "web3_sha3","params": ["0x68656c6c6f20776f726c64"]}]`)...),
 			nil,
 			[]*SuccessResponse{
