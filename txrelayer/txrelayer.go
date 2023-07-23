@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"io"
 	"math/big"
 	"sync"
 	"time"
@@ -145,7 +144,6 @@ func (t *TxRelayerImpl) SendTransactionLocal(txn *ethgo.Transaction) (*ethgo.Rec
 
 	txn.From = accounts[0]
 
-
 	gasLimit, err := t.client.Eth().EstimateGas(ConvertTxnToCallMsg(txn))
 	if err != nil {
 		return nil, err
@@ -153,7 +151,6 @@ func (t *TxRelayerImpl) SendTransactionLocal(txn *ethgo.Transaction) (*ethgo.Rec
 
 	txn.Gas = gasLimit
 	txn.GasPrice = defaultGasPrice
->>>>>>> bb8f77c7 (Invoke estimate gas limit if gas limit not already provided (#1582))
 
 	txnHash, err := t.client.Eth().SendTransaction(txn)
 	if err != nil {
