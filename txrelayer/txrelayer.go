@@ -3,11 +3,9 @@ package txrelayer
 import (
 	"errors"
 	"fmt"
-<<<<<<< HEAD
-=======
+
 	"io"
 	"math/big"
->>>>>>> bb8f77c7 (Invoke estimate gas limit if gas limit not already provided (#1582))
 	"sync"
 	"time"
 
